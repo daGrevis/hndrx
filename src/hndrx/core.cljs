@@ -35,12 +35,23 @@
 (def connections (atom {}))
 (def messages (atom []))
 
-(def connection-chan (chan))
+(def connections-chan (chan))
+(def messages-chan (chan))
 
 (go
   (loop []
-    (let [connection (<! connection-chan)]
-      (swap! connections assoc (connection->peer-id connection) connection))))
+    (let [connection (<! connections-chan)]
+      (.on connection "data" #(put! messages-chan %))
+      (swap! connections assoc (connection->peer-id connection) connection))
+
+    (recur)))
+
+(go
+  (loop []
+    (let [message (<! messages-chan)]
+      (swap! messages conj message))
+
+    (recur)))
 
 (def peer-id (subs (uuid4!) 0 36))
 (def peer (connect-to-peerserver peer-id))
@@ -49,7 +60,7 @@
                     (println "Could not connect to peerserver")
                     (println (.-type error))))
 
-(.on peer "connection" #(put! connection-chan %))
+(.on peer "connection" #(put! connections-chan %))
 
 (defn connections-component []
   [:div
@@ -58,14 +69,14 @@
     (for [[peer-id connection] @connections]
       ^{:key peer-id} [:li peer-id])]])
 
-(defn connection-component [peer]
+(defn connecting-component [peer]
   (let [peer-id-to-connect-to (atom "")]
     (fn []
       [:form {:on-submit (fn [e]
                            (.preventDefault e)
                            (let [connection (new-connection peer @peer-id-to-connect-to)]
                              (.on connection "error" #(println "Could not connect to other peer"))
-                             (.on connection "open" #(put! connection-chan connection)))
+                             (.on connection "open" #(put! connections-chan connection)))
                            (reset! peer-id-to-connect-to ""))}
        [:input {:type "text"
                 :placeholder "peer-id"
@@ -79,12 +90,14 @@
     (for [m @messages]
       [:li m])]])
 
-(defn message-component []
+(defn messaging-component []
   (let [text (atom "")]
     (fn []
       [:form {:on-submit (fn [e]
                            (.preventDefault e)
-                           (swap! messages conj @text)
+                           (doseq [c (vals @connections)]
+                             (send-data c @text))
+                           (put! messages-chan @text)
                            (reset! text ""))}
        [:input {:type "text"
                 :placeholder "Message"
@@ -96,8 +109,8 @@
    [:h1 "Hndrx"]
    [:p "Your peer-id is " [:code peer-id]]
    [connections-component]
-   [connection-component peer]
+   [connecting-component peer]
    [messages-component]
-   [message-component]])
+   [messaging-component]])
 
 (reagent/render-component [root-component] (.-body js/document))
