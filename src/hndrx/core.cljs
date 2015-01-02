@@ -1,7 +1,8 @@
 (ns hndrx.core
   (:require-macros [cljs.core.async.macros :refer [go]])
   (:require [cljs.core.async :refer [put! chan <!]]
-            [reagent.core :as reagent :refer [atom]]))
+            [reagent.core :as reagent :refer [atom]]
+            [schema.core :as schema :include-macros true]))
 
 (enable-console-print!)
 
@@ -32,6 +33,13 @@
 (defn send-data [connection data]
   (.send connection (clj->js data)))
 
+(defn on-connection-data [connection callback]
+  (.on connection "data" #(callback (js->clj % :keywordize-keys true))))
+
+(def Message {:body schema/Str
+              :from schema/Str
+              :to [schema/Str]})
+
 (def connections (atom {}))
 (def messages (atom []))
 
@@ -41,7 +49,7 @@
 (go
   (loop []
     (let [connection (<! connections-chan)]
-      (.on connection "data" #(put! messages-chan %))
+      (on-connection-data connection #(put! messages-chan %))
       (swap! connections assoc (connection->peer-id connection) connection))
 
     (recur)))
@@ -49,7 +57,7 @@
 (go
   (loop []
     (let [message (<! messages-chan)]
-      (swap! messages conj message))
+      (swap! messages conj (:body message)))
 
     (recur)))
 
@@ -90,14 +98,18 @@
     (for [m @messages]
       [:li m])]])
 
-(defn messaging-component []
+(defn messaging-component [peer-id]
   (let [text (atom "")]
     (fn []
       [:form {:on-submit (fn [e]
                            (.preventDefault e)
-                           (doseq [c (vals @connections)]
-                             (send-data c @text))
-                           (put! messages-chan @text)
+                           (let [message {:body @text
+                                          :from peer-id
+                                          :to (keys @connections)}]
+                             (schema/validate Message message)
+                             (doseq [connection (vals @connections)]
+                               (send-data connection message))
+                             (put! messages-chan message))
                            (reset! text ""))}
        [:input {:type "text"
                 :placeholder "Message"
@@ -111,6 +123,6 @@
    [connections-component]
    [connecting-component peer]
    [messages-component]
-   [messaging-component]])
+   [messaging-component peer-id]])
 
 (reagent/render-component [root-component] (.-body js/document))
