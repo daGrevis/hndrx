@@ -77,7 +77,7 @@
     (for [[peer-id connection] @connections]
       ^{:key peer-id} [:li peer-id])]])
 
-(defn connecting-component [peer]
+(defn connecting-component []
   (let [peer-id-to-connect-to (atom "")]
     (fn []
       [:form {:on-submit (fn [e]
@@ -98,31 +98,31 @@
     (for [m @messages]
       [:li m])]])
 
-(defn messaging-component [peer-id]
-  (let [text (atom "")]
+(defn messaging-component []
+  (let [value (atom "")]
     (fn []
       [:form {:on-submit (fn [e]
                            (.preventDefault e)
-                           (let [message {:body @text
+                           (let [message {:body @value
                                           :from peer-id
                                           :to (keys @connections)}]
                              (schema/validate Message message)
                              (doseq [connection (vals @connections)]
                                (send-data connection message))
                              (put! messages-chan message))
-                           (reset! text ""))}
+                           (reset! value ""))}
        [:input {:type "text"
                 :placeholder "Message"
-                :value @text
-                :on-change #(reset! text (.. % -target -value))}]])))
+                :value @value
+                :on-change #(reset! value (.. % -target -value))}]])))
 
 (defn root-component []
   [:div
    [:h1 "Hndrx"]
    [:p "Your peer-id is " [:code peer-id]]
    [connections-component]
-   [connecting-component peer]
+   [connecting-component]
    [messages-component]
-   [messaging-component peer-id]])
+   [messaging-component]])
 
 (reagent/render-component [root-component] (.-body js/document))
