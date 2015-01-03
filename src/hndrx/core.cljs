@@ -2,7 +2,8 @@
   (:require-macros [cljs.core.async.macros :refer [go]])
   (:require [cljs.core.async :refer [put! chan <!]]
             [reagent.core :as reagent :refer [atom]]
-            [schema.core :as schema :include-macros true]))
+            [schema.core :as schema :include-macros true])
+  (:import [goog.string format]))
 
 (enable-console-print!)
 
@@ -57,7 +58,7 @@
 (go
   (loop []
     (let [message (<! messages-chan)]
-      (swap! messages conj (:body message)))
+      (swap! messages conj message))
 
     (recur)))
 
@@ -95,8 +96,8 @@
   [:div
    [:h2 "Messages"]
    [:ul
-    (for [m @messages]
-      [:li m])]])
+    (for [{:keys [body from]} @messages]
+      [:li body " (by " [:code from] ")"])]])
 
 (defn messaging-component []
   (let [value (atom "")]
