@@ -2,7 +2,6 @@
   (:require-macros [cljs.core.async.macros :refer [go]])
   (:require [cljs.core.async :refer [put! chan <!]]
             [reagent.core :as reagent :refer [atom]]
-            [clojure.set :refer [difference]]
             [schema.core :as schema :include-macros true])
   (:import [goog.string format]))
 
@@ -59,9 +58,6 @@
     (doseq [connection connections]
       (send-data! connection data))))
 
-(defn get-involved-peer-ids [peer-ids peer-id-for-follower]
-  (difference (set peer-ids) (set [peer-id-for-follower])))
-
 (def Message {:body schema/Str
               :from schema/Str
               :to [schema/Str]})
@@ -108,8 +104,8 @@
 (defn on-connection-to-leader [connection]
   (put! connections-chan connection)
 
-  ; TODO: Send request to the follower to connect to other followers that are involved.
-  (println (get-involved-peer-ids (connections->peer-ids @connections) (connection->peer-id connection))))
+  ; TODO: When there is new connection, send all current peer-ids to all connections leader knows.
+  )
 
 (on-peer-connection peer on-connection-to-leader)
 
