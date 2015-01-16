@@ -207,5 +207,4 @@
    [messaging-component]])
 
 ; Takeoff for graphics!
-
 (reagent/render-component [root-component] (.-body js/document))
