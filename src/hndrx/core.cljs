@@ -123,9 +123,9 @@
       (on-connection-data connection #(put! data-chan %))
 
       (cond
-        undecided? (on-connection-from-undecided)
-        leader? (on-connection-from-leader)
-        follower? (on-connection-from-follower))
+        (undecided?) (on-connection-from-undecided)
+        (leader?) (on-connection-from-leader)
+        (follower?) (on-connection-from-follower))
 
       (swap! connections conj connection))
 
