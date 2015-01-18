@@ -65,6 +65,13 @@
   {:data-type data-type
    :data-source data-source})
 
+(defn undecided? [role]
+  (= role :undecided))
+(defn leader? [role]
+  (= role :leader))
+(defn follower? [role]
+  (= role :follower))
+
 (defn get-role-text [role]
   (get {:undecided "undecided"
         :leader "leader"
@@ -83,13 +90,6 @@
 
 ; Unsafe functions.
 
-(defn undecided? []
-  (= @role :undecided))
-(defn leader? []
-  (= @role :leader))
-(defn follower? []
-  (= @role :follower))
-
 (defn send-message! [connections message]
   (let [data (prepare-data "message" message)]
     (doseq [connection connections]
@@ -101,15 +101,15 @@
 (def data-chan (chan))
 (def messages-chan (chan))
 
-(defn on-connection-from-undecided []
-  (debug! "new connection from undecided"))
+(defn on-connection-to-undecided []
+  (debug! "new connection to undecided"))
 
 ;; TODO: When there is new connection, send all current peer-ids to all connections leader knows.
-(defn on-connection-from-leader []
-  (debug! "new connection from leader"))
+(defn on-connection-to-leader []
+  (debug! "new connection to leader"))
 
-(defn on-connection-from-follower []
-  (debug! "someone connected from follower, this should not happen"))
+(defn on-connection-to-follower []
+  (debug! "someone connected to follower"))
 
 (on-peer-connection @peer (fn [connection]
                             (reset! role :leader)
@@ -123,9 +123,9 @@
       (on-connection-data connection #(put! data-chan %))
 
       (cond
-        (undecided?) (on-connection-from-undecided)
-        (leader?) (on-connection-from-leader)
-        (follower?) (on-connection-from-follower))
+        (undecided? @role) (on-connection-to-undecided)
+        (leader? @role) (on-connection-to-leader)
+        (follower?) (on-connection-to-follower))
 
       (swap! connections conj connection))
 
