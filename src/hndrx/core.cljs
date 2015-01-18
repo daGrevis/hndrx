@@ -65,9 +65,15 @@
   {:data-type data-type
    :data-source data-source})
 
+(defn get-role-text [role]
+  (get {:undecided "undecided"
+        :leader "leader"
+        :follower "follower"}
+       role))
+
 ; App state.
 
-(def status
+(def role
   (atom :undecided))
 
 (def peer-id (atom (subs (uuid4!) 0 36)))
@@ -78,11 +84,11 @@
 ; Unsafe functions.
 
 (defn undecided? []
-  (= @status :undecided))
+  (= @role :undecided))
 (defn leader? []
-  (= @status :leader))
+  (= @role :leader))
 (defn follower? []
-  (= @status :follower))
+  (= @role :follower))
 
 (defn send-message! [connections message]
   (let [data (prepare-data "message" message)]
@@ -95,9 +101,6 @@
 (def data-chan (chan))
 (def messages-chan (chan))
 
-(defn on-connection [connection]
-  (put! connections-chan connection))
-
 (defn on-connection-from-undecided []
   (debug! "new connection from undecided"))
 
@@ -108,7 +111,9 @@
 (defn on-connection-from-follower []
   (debug! "someone connected from follower, this should not happen"))
 
-(on-peer-connection @peer on-connection)
+(on-peer-connection @peer (fn [connection]
+                            (reset! role :leader)
+                            (put! connections-chan connection)))
 (on-peer-error @peer #(error! (.-type %)))
 
 ;; Called on any kind of new connection.
@@ -155,6 +160,11 @@
       ^{:key peer-id}
       [:li peer-id])]])
 
+(defn stats-component []
+  [:div
+   [:p "Your peer-id is " [:code @peer-id]]
+   [:p "Your role is " [:code (get-role-text @role)]]])
+
 (defn connecting-component []
   (let [peer-id-to-connect-to (atom "")]
     (fn []
@@ -162,7 +172,9 @@
                            (.preventDefault e)
                            (let [connection (new-connection @peer @peer-id-to-connect-to)]
                              (.on connection "error" #(error! "Could not connect to other peer"))
-                             (.on connection "open" #(put! connections-chan connection)))
+                             (.on connection "open" (fn []
+                                                      (reset! role :follower)
+                                                      (put! connections-chan connection))))
                            (reset! peer-id-to-connect-to ""))}
        [:input {:type "text"
                 :placeholder "peer-id"
@@ -200,11 +212,11 @@
 (defn root-component []
   [:div
    [:h1 "Hndrx"]
-   [:p "Your peer-id is " [:code @peer-id]]
+   [stats-component]
    [connections-component]
    [connecting-component]
    [messages-component]
    [messaging-component]])
 
-; Takeoff for graphics!
+;; Takeoff for graphics!
 (reagent/render-component [root-component] (.-body js/document))
