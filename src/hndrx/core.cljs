@@ -8,10 +8,10 @@
 ; Utilities.
 
 (defn debug! [what]
-  (.debug js/console what))
+  (.debug js/console (str what)))
 
 (defn error! [what]
-  (.error js/console what))
+  (.error js/console (str what)))
 
 (defn uuid4!
   "https://catamorphic.wordpress.com/2012/03/02/generating-a-random-uuid-in-clojurescript/"
@@ -59,11 +59,13 @@
               :from schema/Str
               :to [schema/Str]})
 
+(def PeerIds [schema/Str])
+
 ; Safe functions.
 
-(defn prepare-data [data-type data-source]
-  {:data-type data-type
-   :data-source data-source})
+(defn wrap-data [kind contents]
+  {:kind kind
+   :contents contents})
 
 (defn undecided? [role]
   (= role :undecided))
@@ -82,7 +84,6 @@
 
 (def role
   (atom :undecided))
-
 (def peer-id (atom (subs (uuid4!) 0 36)))
 (def peer (atom (connect-to-peerserver @peer-id)))
 (def connections (atom []))
@@ -90,29 +91,35 @@
 
 ; Unsafe functions.
 
-(defn send-message! [connections message]
-  (let [data (prepare-data "message" message)]
-    (doseq [connection connections]
-      (send-data! connection data))))
+(defn send-data-to-connections! [connections data]
+  (doseq [connection connections]
+    (send-data! connection data)))
 
 ; Channels and events.
 
 (def connections-chan (chan))
 (def data-chan (chan))
-(def messages-chan (chan))
 
 (defn on-incoming-connection-to-undecided []
   (reset! role :leader))
 
-;; TODO: When there is new connection, send all current peer-ids to all connections leader knows.
 (defn on-incoming-connection-to-leader []
-  (debug! "new connection to leader"))
+  (let [peer-ids (connections->peer-ids @connections)]
+    (schema/validate PeerIds peer-ids)
+
+    (send-data-to-connections! @connections (wrap-data "peer-ids" peer-ids))))
 
 (defn on-incoming-connection-to-follower []
   (error! "someone connected to follower, this should not happen"))
 
 (defn on-outgoing-connection-to-leader []
   (reset! role :follower))
+
+;; There is no difference between local messages and ones that are sent to you over the network.
+(defn on-message [message]
+  (schema/validate Message message)
+
+  (swap! messages conj message))
 
 (on-peer-connection @peer #(put! connections-chan [% true]))
 (on-peer-error @peer #(error! (.-type %)))
@@ -136,20 +143,10 @@
 
 (go
   (loop []
-    (let [data (<! data-chan)
-          {:keys [data-type data-source]} data]
+    (let [{:keys [kind contents]} (<! data-chan)]
       (cond
-        (= data-type "message") (put! messages-chan data-source)))
-
-    (recur)))
-
-;; There is no difference between local messages and ones that are sent to you over the network.
-(go
-  (loop []
-    (let [message (<! messages-chan)]
-      (schema/validate Message message)
-
-      (swap! messages conj message))
+        (= kind "message") (on-message contents)
+        (= kind "peer-ids") (debug! "peer-ids!")))
 
     (recur)))
 
@@ -202,9 +199,9 @@
                                           :to (connections->peer-ids @connections)}]
                              (schema/validate Message message)
 
-                             (send-message! @connections message)
+                             (send-data-to-connections! @connections (wrap-data "message" message))
 
-                             (put! messages-chan message))
+                             (on-message message))
                            (reset! value ""))}
        [:input {:type "text"
                 :placeholder "Message"
