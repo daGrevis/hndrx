@@ -101,33 +101,36 @@
 (def data-chan (chan))
 (def messages-chan (chan))
 
-(defn on-connection-to-undecided []
-  (debug! "new connection to undecided"))
+(defn on-incoming-connection-to-undecided []
+  (reset! role :leader))
 
 ;; TODO: When there is new connection, send all current peer-ids to all connections leader knows.
-(defn on-connection-to-leader []
+(defn on-incoming-connection-to-leader []
   (debug! "new connection to leader"))
 
-(defn on-connection-to-follower []
-  (debug! "someone connected to follower"))
+(defn on-incoming-connection-to-follower []
+  (error! "someone connected to follower, this should not happen"))
 
-(on-peer-connection @peer (fn [connection]
-                            (reset! role :leader)
-                            (put! connections-chan connection)))
+(defn on-outgoing-connection-to-leader []
+  (reset! role :follower))
+
+(on-peer-connection @peer #(put! connections-chan [% true]))
 (on-peer-error @peer #(error! (.-type %)))
 
 ;; Called on any kind of new connection.
 (go
   (loop []
-    (let [connection (<! connections-chan)]
+    (let [[connection incoming?] (<! connections-chan)
+          outgoing? (not incoming?)]
+      (swap! connections conj connection)
+
       (on-connection-data connection #(put! data-chan %))
 
       (cond
-        (undecided? @role) (on-connection-to-undecided)
-        (leader? @role) (on-connection-to-leader)
-        (follower?) (on-connection-to-follower))
-
-      (swap! connections conj connection))
+        (and incoming? (undecided? @role)) (on-incoming-connection-to-undecided)
+        (and incoming? (leader? @role)) (on-incoming-connection-to-leader)
+        (and incoming? (follower? @role)) (on-incoming-connection-to-follower)
+        outgoing? (on-outgoing-connection-to-leader)))
 
     (recur)))
 
@@ -173,8 +176,7 @@
                            (let [connection (new-connection @peer @peer-id-to-connect-to)]
                              (.on connection "error" #(error! "Could not connect to other peer"))
                              (.on connection "open" (fn []
-                                                      (reset! role :follower)
-                                                      (put! connections-chan connection))))
+                                                      (put! connections-chan [connection false]))))
                            (reset! peer-id-to-connect-to ""))}
        [:input {:type "text"
                 :placeholder "peer-id"
