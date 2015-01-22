@@ -110,7 +110,8 @@
     (send-data-to-connections! @connections (wrap-data "peer-ids" peer-ids))))
 
 (defn on-incoming-connection-to-follower []
-  (error! "someone connected to follower, this should not happen"))
+  ; It happens when follower connects to other follower because leader said it should.
+  (debug! "someone connected to follower"))
 
 (defn on-outgoing-connection-to-leader []
   (reset! role :follower))
