@@ -103,6 +103,13 @@
   (doseq [connection connections]
     (send-data! connection data)))
 
+
+(defn connect-to-peer-id! [peer peer-id-to-connect-to connections-chan]
+  (let [connection (new-connection peer peer-id-to-connect-to)]
+    (.on connection "error" #(error! "Could not connect to other peer"))
+    (.on connection "open" (fn []
+                             (put! connections-chan [connection false])))))
+
 ; Channels and events.
 
 (def connections-chan (chan))
@@ -131,7 +138,8 @@
   (swap! messages conj message))
 
 (defn on-peer-ids-to-follower [peer-ids]
-  (debug! (get-undiscovered-peer-ids @peer-id (connections->peer-ids @connections) peer-ids)))
+  (doseq [peer-id (get-undiscovered-peer-ids @peer-id (connections->peer-ids @connections) peer-ids)]
+    (connect-to-peer-id! @peer peer-id connections-chan)))
 
 (on-peer-connection @peer #(put! connections-chan [% true]))
 (on-peer-error @peer #(error! (.-type %)))
@@ -182,10 +190,7 @@
     (fn []
       [:form {:on-submit (fn [e]
                            (.preventDefault e)
-                           (let [connection (new-connection @peer @peer-id-to-connect-to)]
-                             (.on connection "error" #(error! "Could not connect to other peer"))
-                             (.on connection "open" (fn []
-                                                      (put! connections-chan [connection false]))))
+                           (connect-to-peer-id! @peer @peer-id-to-connect-to connections-chan)
                            (reset! peer-id-to-connect-to ""))}
        [:input {:type "text"
                 :placeholder "peer-id"
