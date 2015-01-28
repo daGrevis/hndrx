@@ -7,6 +7,9 @@
 
 ; Utilities.
 
+(defn in? [coll x]
+  (not (nil? (some #(= x %) coll))))
+
 (defn debug! [what]
   (.debug js/console (str what)))
 
@@ -80,6 +83,11 @@
         :follower "follower"}
        role))
 
+(defn get-undiscovered-peer-ids [peer-id peer-ids-currently-discovered peer-ids-from-leader]
+  (filter #(and (not= % peer-id)
+                ((complement in?) peer-ids-currently-discovered))
+          peer-ids-from-leader))
+
 ; App state.
 
 (def role
@@ -122,6 +130,9 @@
 
   (swap! messages conj message))
 
+(defn on-peer-ids-to-follower [peer-ids]
+  (debug! (get-undiscovered-peer-ids @peer-id (connections->peer-ids @connections) peer-ids)))
+
 (on-peer-connection @peer #(put! connections-chan [% true]))
 (on-peer-error @peer #(error! (.-type %)))
 
@@ -147,7 +158,7 @@
     (let [{:keys [kind contents]} (<! data-chan)]
       (cond
         (= kind "message") (on-message contents)
-        (= kind "peer-ids") (debug! "peer-ids!")))
+        (= kind "peer-ids") (on-peer-ids-to-follower contents)))
 
     (recur)))
 
