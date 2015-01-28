@@ -85,7 +85,7 @@
 
 (defn get-undiscovered-peer-ids [peer-id peer-ids-currently-discovered peer-ids-from-leader]
   (filter #(and (not= % peer-id)
-                ((complement in?) peer-ids-currently-discovered))
+                ((complement in?) peer-ids-currently-discovered %))
           peer-ids-from-leader))
 
 ; App state.
