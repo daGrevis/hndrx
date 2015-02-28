@@ -183,7 +183,7 @@
 (defn stats-component []
   [:div
    [:p "Your peer-id is " [:code @peer-id]]
-   [:p "Your role is " [:code (get-role-text @role)]]])
+   [:p "Your role is " [:code#role (get-role-text @role)]]])
 
 (defn connecting-component []
   (let [peer-id-to-connect-to (atom "")]
@@ -200,7 +200,7 @@
 (defn messages-component []
   [:div
    [:h2 "Messages"]
-   [:ul
+   [:ul#messages
     (for [{:keys [body from]} @messages]
       ^{:key [body from]}
       [:li body " (by " [:code from] ")"])]])
@@ -220,10 +220,10 @@
 
                              (on-message message))
                            (reset! value ""))}
-       [:input {:type "text"
-                :placeholder "Message"
-                :value @value
-                :on-change #(reset! value (.. % -target -value))}]])))
+       [:input#message {:type "text"
+                        :placeholder "Message"
+                        :value @value
+                        :on-change #(reset! value (.. % -target -value))}]])))
 
 (defn root-component []
   [:div
