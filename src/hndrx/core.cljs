@@ -182,7 +182,7 @@
 
 (defn stats-component []
   [:div
-   [:p "Your peer-id is " [:code @peer-id]]
+   [:p "Your peer-id is " [:code#peer-id @peer-id]]
    [:p "Your role is " [:code#role (get-role-text @role)]]])
 
 (defn connecting-component []
